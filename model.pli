@@ -1,0 +1,135 @@
+@model<probabilistic>
+def Model(R{1}, S{1}, T{1}, P{1}, R{2}, S{2}, T{2}, P{2}, cs, ds, M, w, U, C) {
+	/*
+	R: Reward
+	S: Sucker
+	T: Temptation
+	P: Punishment
+	cs: Initial number of cooperators
+	ds: Initial number of defectors
+	M: Number of meetings per cycle
+	w: Influence
+	U: Prob. of mutation
+	C: Number of cycles
+	*/
+
+	let MAX_AC_C = M*R{1};
+	let MAX_AC_D = M*T{2};
+	let MAX_FC = (M + @floor(w * (MAX_AC_C − M)));
+	let MAX_FD = (M + @floor(w * (MAX_AC_D − M)));
+	let n = cs + ds;
+
+	/* Number of membranes */
+	let Q = 2;
+
+	/* Membrane structure */
+	@mu = [[[]’1[]’2]’g]’s;
+
+	/* Input multiset for membrane 1 */
+	@ms(1) += c{ci, 0, 0} : 1 <= ci <= cs;
+	@ms(1) += d{di, 0, 0} : cs + 1 <= di <= cs + ds;
+	@ms(1) += z{0};
+
+	/* Input multiset for membrane 2 */
+	@ms(2) += c{ci, 0, 0} : 1 <= ci <= cs;
+	@ms(2) += d{di, 0, 0} : cs + 1 <= di <= cs + ds;
+	@ms(2) += z{0};
+
+	/* Input multiset for membrane g */
+	@ms(g) += w;
+
+	/* Input multiset for membrane s */
+	@ms(s) += h{0};
+
+	/* Rules */
+	/* R1 */
+	[c{Id1, A, (r1 * S{k}) + ((A−r1) * R{k})}, c{Id2, A, (r2 * S{k}) + ((A−r2) * R{k})} −−> c {Id1 ,A+1 , (r1 * S{k}) + ((A−r1) * R{k}) + R{k}}, c{Id2, A + 1, (r2 * S{k}) + ((A−r2) * R{k}) + R{k}}]’{k} :: 1.0 : 1 <= k <= Q, 0 <= Id1 <= n , 0 <= Id2 <= n , 0 <= r1 <= A, 0 <= r2 <= A, 0 <= A <= M−1;
+
+	/* R2 */
+	[c{Id1, A, (r1 * S{k}) + ((A−r1) * R{k})}, d{Id2, A, (r2 * T{k}) + ((A−r2) * P{k})} −−> c{Id1, A + 1, (r1 * S{k}) + ((A−r1) * R{k}) + S{k}}, d{Id2, A + 1, (r2 * T{k}) + ((A−r2) * P{k}) + T{k}}]’{k} :: 1.0 : 1 <= k <= Q, 0 <= Id1 <= n , 0 <= Id2 <= n , 0 <= r1 <= A, 0 <= r2 <= A, 0 <= A <= M−1;
+
+	/* R3 */
+	[d{Id1, A, (r1 * T{k}) + ((A−r1) * P{k})}, d{Id2, A, (r2 * T{k}) + ((A−r2) * P{k})} −−> d{Id1, A + 1, (r1 * T{k}) + ((A−r1) * P{k}) + P{k}}, d{Id2 , A + 1, (r2 * T{k}) + ((A−r2) * P{k}) + P{k}}]’{k} :: 1.0 : 1 <= k <= Q, 0 <= Id1 <= n, 0 <= Id2 <= n, 0 <= r1 <= A, 0 <= r2 <= A, 0 <= A <= M−1;
+
+	/* R4 */
+	+[c{Id, M, (r1 * S{k}) + ((A−r1) * R{k})} −−> &{p{Id, j}, c{Id, 0, 0}}:{1 <= j <=(M + @floor(w * (((r1 * S{k}) + ((A−r1) * R{k}))− M)))}]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n , 0 <= r1 <= A, 1 <= A <= M;
+
+	/* R5 */
+	+[d{Id, M, (r1 * T{k}) + ((A−r1) * P{k})} −−> &{q{Id, j}, d{Id, 0, 0}}:{1 <= j <=(M + @floor(w * (((r1 * T{k}) + ((A−r1) * P{k}))− M)))}]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n , 0 <= r1 <= A, 1 <= A <= M;
+
+	/* R6 */
+	+[L −−> La]’{k} :: U : 1 <= k <= Q;
+
+	/* R7 */
+	+[L −−> Lb]’{k} :: 1.0 − U : 1 <= k <= Q;
+
+	/* R8 */
+	+[p{Id, jj}, La −−> D,K]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n, 1 <= jj <= MAX_FC;
+
+	/* R9 */
+	+[q{Id, jj}, La −−> C,K]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n, 1 <= jj <= MAX_FD;
+
+	/* R10 */
+	+[p{Id, jj}, Lb −−> C,K]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n , 1 <= jj <= MAX_FC;
+
+	/* R11 */
+	+[q{Id, jj}, Lb −−> D,K]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n , 1 <= jj <= MAX_FD;
+
+	/* R12 */
+	+[K{Id}, C −−> c {Id, 0, 0}]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n;
+
+	/* R13 */
+	+[K{Id}, D −−> d{Id, 0 , 0}]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n;
+
+	/* R14 */
+	+[K, c{Id, 0, 0} −−> K{Id}]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n;
+	+[K, d{Id, 0, 0} −−> K{Id}]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n;
+
+	/* R15 */
+	+[V, c{Id, 0, 0}]’{k} −−> V{k, Id}, c{Id, 0, 0} − [c{Id, 0, 0}]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n;
+	+[V, d{Id, 0, 0}]’{k} −−> V{k, Id}, d{Id, 0, 0} − [d{Id, 0, 0}]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n;
+
+	/* R16 */
+	c{Id1, 0, 0}, V{k, Id2}−[]’{k} −−> −[c{Id2, 0, 0}]’{k} :: 0 : 1 <= k <= Q, 1 <= Id1 <= n, 1 <= Id2 <= n;
+	d{Id1, 0, 0}, V{k, Id2}−[]’{k} −−> −[d{Id2, 0, 0}]’{k} :: 0 : 1 <= k <= Q, 1 <= Id1 <= n, 1 <= Id2 <= n;
+
+	/* R17 */
+	[z{i} −−> z{i+1}]’{k} :: 1.0 : 1 <= k <= Q, 0 <= i <= M−3;
+	+[z{i} −−> z{i+1}]’{k} :: 1.0 : 1 <= k <= Q, M <= i <= M+2;
+
+	/* R18 */
+	[z{M−2} −−> z{M−1}, f{0,k}]’{k} :: 1.0 : 1 <= k <= Q;
+
+	/* R19 */
+	[z{M−1} −−> z{M}, L]’{k} :: 1.0 : 1 <= k <= Q;
+
+	/* R20 */
+	+[z{M+3} −−> V]’{k} :: 1.0 : 1 <= k <= Q;
+
+	/* R21 */
+	[f{0,k}]’{k} −−> f{1, k}+[]’{k} :: 1.0 : 1 <= k <= Q;
+
+	/* R22 */
+	[f{i,k} −−> f{i+1, k}]’g :: 1.0 : 1 <= k <= Q, 1 <= i <= 6;
+
+	/* R23 */
+	f{7,k}−[]’{k} −−> [z{0}]’{k} :: 1.0 : 1 <= k <= Q;
+
+	/* R24 */
+	[h{i} −−> h{i+1}]’s :: 1.0 : 0 <= i <= C*M + 7*C − 4 ;
+
+	/* R25 */
+	h{C * M + 7 * C − 3}[]’g −−> +[h{C*M + 7*C − 3}]’g :: 1.0;
+
+	/* R26 */
+	[p{Id, jj} −−>]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n, 1 <= jj <= MAX_FC;
+
+	/* R27 */
+	[q{Id, jj} −−>]’{k} :: 1.0 : 1 <= k <= Q, 1 <= Id <= n, 1 <= jj <= MAX_FD;
+
+	/* R28 */
+	[La −−>]’{k} :: 1.0 : 1 <= k <= Q;
+
+	/* R29 */
+	[Lb −−>]’{k} :: 1.0 : 1 <= k <= Q;
+}
